@@ -87,8 +87,15 @@ function DynamicBodyAndGarment({
         avatarGroupRef.current.scale.y += (targetScaleY - avatarGroupRef.current.scale.y) * 0.4;
         avatarGroupRef.current.scale.z += (targetScaleZ - avatarGroupRef.current.scale.z) * 0.4;
 
-        avatarGroupRef.current.rotation.y += (targetRotY - avatarGroupRef.current.rotation.y) * 0.4;
-        avatarGroupRef.current.rotation.z += (targetTiltZ - avatarGroupRef.current.rotation.z) * 0.4;
+        // Clamp rotation to prevent unnatural twists (max ~45 degrees left/right)
+        const clampedRotY = Math.max(-0.8, Math.min(0.8, targetRotY));
+        const clampedTiltZ = Math.max(-0.5, Math.min(0.5, targetTiltZ));
+
+        // Use Quaternion Spherical Interpolation (slerp) to prevent the "spinning" bug (Gimbal Lock)
+        const targetQuaternion = new THREE.Quaternion().setFromEuler(
+          new THREE.Euler(0, clampedRotY, clampedTiltZ, 'YXZ')
+        );
+        avatarGroupRef.current.quaternion.slerp(targetQuaternion, 0.4);
 
         // Update Occluders
         // We use slightly larger multipliers for the occluders to make sure they match the camera fov

@@ -15,6 +15,22 @@ export function usePoseTracking(
 
   const poseRef = useRef<Pose | null>(null);
   const cameraRef = useRef<Camera | null>(null);
+  const lastPoseRef = useRef<PoseData | null>(null);
+
+  // EMA Filter function
+  const applyEma = (curr: number, prev: number | undefined, smoothing: number = 0.3) => {
+    if (prev === undefined || isNaN(prev)) return curr;
+    return prev + (curr - prev) * smoothing;
+  };
+
+  const applyAngleEma = (curr: number, prev: number | undefined, smoothing: number = 0.3) => {
+    if (prev === undefined || isNaN(prev)) return curr;
+    // Handle angle wrapping for EMA
+    let diff = curr - prev;
+    while (diff < -Math.PI) diff += 2 * Math.PI;
+    while (diff > Math.PI) diff -= 2 * Math.PI;
+    return prev + diff * smoothing;
+  };
 
   const onResults = useCallback((results: Results) => {
     if (!results.poseLandmarks) {
@@ -50,7 +66,10 @@ export function usePoseTracking(
     const leftForearmAngleZ = Math.atan2(leftWrist.y - leftElbow.y, leftWrist.x - leftElbow.x);
     const rightForearmAngleZ = Math.atan2(rightWrist.y - rightElbow.y, rightWrist.x - rightElbow.x);
 
-    setPoseData({
+    const lastPose = lastPoseRef.current;
+    const SMOOTHING = 0.25; // Lower is smoother (stops flinging)
+
+    const smoothedPose: PoseData = {
       leftShoulder,
       rightShoulder,
       leftHip,
@@ -59,16 +78,23 @@ export function usePoseTracking(
       rightElbow,
       leftWrist,
       rightWrist,
-      torsoCenter,
-      torsoWidth,
-      torsoHeight,
-      rotationY,
-      tiltZ,
-      leftArmAngleZ,
-      rightArmAngleZ,
-      leftForearmAngleZ,
-      rightForearmAngleZ,
-    });
+      torsoCenter: {
+        x: applyEma(torsoCenter.x, lastPose?.torsoCenter.x, SMOOTHING),
+        y: applyEma(torsoCenter.y, lastPose?.torsoCenter.y, SMOOTHING),
+        z: applyEma(torsoCenter.z, lastPose?.torsoCenter.z, SMOOTHING),
+      },
+      torsoWidth: applyEma(torsoWidth, lastPose?.torsoWidth, SMOOTHING),
+      torsoHeight: applyEma(torsoHeight, lastPose?.torsoHeight, SMOOTHING),
+      rotationY: applyAngleEma(rotationY, lastPose?.rotationY, SMOOTHING),
+      tiltZ: applyAngleEma(tiltZ, lastPose?.tiltZ, SMOOTHING),
+      leftArmAngleZ: applyAngleEma(leftArmAngleZ, lastPose?.leftArmAngleZ, SMOOTHING),
+      rightArmAngleZ: applyAngleEma(rightArmAngleZ, lastPose?.rightArmAngleZ, SMOOTHING),
+      leftForearmAngleZ: applyAngleEma(leftForearmAngleZ, lastPose?.leftForearmAngleZ, SMOOTHING),
+      rightForearmAngleZ: applyAngleEma(rightForearmAngleZ, lastPose?.rightForearmAngleZ, SMOOTHING),
+    };
+
+    lastPoseRef.current = smoothedPose;
+    setPoseData(smoothedPose);
 
     if (results.segmentationMask) {
       setSegmentationMask(results.segmentationMask);
@@ -82,6 +108,7 @@ export function usePoseTracking(
         cameraRef.current.stop();
         cameraRef.current = null;
       }
+      lastPoseRef.current = null;
       return;
     }
 
