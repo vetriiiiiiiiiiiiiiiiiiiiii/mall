@@ -53,11 +53,13 @@ export function usePoseTracking(
     const rightHip = landmarks[24];
 
     const torsoWidth = Math.abs(rightShoulder.x - leftShoulder.x);
+    // Use shoulders for stable vertical center tracking, since hips are unreliable on webcams (especially sitting in a car!)
+    const shouldersY = (leftShoulder.y + rightShoulder.y) / 2;
     const torsoHeight = Math.abs(leftHip.y - leftShoulder.y);
 
     const torsoCenter = {
       x: (leftShoulder.x + rightShoulder.x) / 2,
-      y: (leftShoulder.y + leftHip.y) / 2,
+      y: shouldersY,
       z: (leftShoulder.z + rightShoulder.z) / 2,
     };
 

@@ -47,19 +47,18 @@ function ArmOccluder({ start, end, radius }: { start: THREE.Vector3, end: THREE.
   );
 }
 
-// Invisible sphere to block the back of the collar so the neck goes inside the shirt
-function HeadOccluder({ position, radius }: { position: THREE.Vector3, radius: number }) {
+// Invisible capsule to block the back of the collar and the head
+function HeadOccluder({ position, radius, length }: { position: THREE.Vector3, radius: number, length: number }) {
   const meshRef = useRef<THREE.Mesh>(null);
   
   useFrame(() => {
     if (!meshRef.current) return;
-    // We add a tiny lerp to smooth the head tracking too
     meshRef.current.position.lerp(position, 0.5);
   });
 
   return (
     <mesh ref={meshRef} renderOrder={-1}>
-      <sphereGeometry args={[radius, 32, 32]} />
+      <capsuleGeometry args={[radius, length, 16, 32]} />
       <meshBasicMaterial colorWrite={false} depthWrite={true} />
     </mesh>
   );
@@ -88,11 +87,13 @@ function DynamicBodyAndGarment({
         const targetY = -(poseData.torsoCenter.y - 0.5) * 2.9;
         
         // Non-uniform fitting based on specific body metrics (Shoulder, Hip, Stomach)
-        const targetScaleX = Math.max(0.6, Math.min(2.5, poseData.torsoWidth * 6.5));
-        // Torso height is the distance from shoulder to hip. We stretch the Y axis accordingly.
-        const targetScaleY = Math.max(0.6, Math.min(2.5, poseData.torsoHeight * 4.2));
-        // Estimate Z depth (stomach/chest depth) based on a mix of width and height
-        const targetScaleZ = (targetScaleX * 0.6) + (targetScaleY * 0.4);
+        // Hips are extremely unreliable on webcams, so we lock the aspect ratio to the shoulder width!
+        const targetScale = Math.max(0.7, Math.min(1.8, poseData.torsoWidth * 5.5));
+        
+        // Morph the exact proportions of the garment to match the person's body type
+        avatarGroupRef.current.scale.x += (targetScale - avatarGroupRef.current.scale.x) * 0.4;
+        avatarGroupRef.current.scale.y += (targetScale - avatarGroupRef.current.scale.y) * 0.4;
+        avatarGroupRef.current.scale.z += (targetScale - avatarGroupRef.current.scale.z) * 0.4;
 
         const targetRotY = poseData.rotationY + manualRotationY;
         const targetTiltZ = poseData.tiltZ;
@@ -101,11 +102,6 @@ function DynamicBodyAndGarment({
         avatarGroupRef.current.position.x += (targetX - avatarGroupRef.current.position.x) * 0.4;
         avatarGroupRef.current.position.y += (targetY - avatarGroupRef.current.position.y) * 0.4;
         
-        // Morph the exact proportions of the garment to match the person's body type
-        avatarGroupRef.current.scale.x += (targetScaleX - avatarGroupRef.current.scale.x) * 0.4;
-        avatarGroupRef.current.scale.y += (targetScaleY - avatarGroupRef.current.scale.y) * 0.4;
-        avatarGroupRef.current.scale.z += (targetScaleZ - avatarGroupRef.current.scale.z) * 0.4;
-
         // Clamp rotation to prevent unnatural twists (max ~45 degrees left/right)
         const clampedRotY = Math.max(-0.8, Math.min(0.8, targetRotY));
         const clampedTiltZ = Math.max(-0.5, Math.min(0.5, targetTiltZ));
@@ -118,15 +114,16 @@ function DynamicBodyAndGarment({
 
         // Update Occluders
         // We use slightly larger multipliers for the occluders to make sure they match the camera fov
-        leftArmOccluderStart.current.set(-(poseData.leftShoulder.x - 0.5) * 5.0, -(poseData.leftShoulder.y - 0.5) * 4.0, 0.5);
-        leftArmOccluderEnd.current.set(-(poseData.leftWrist.x - 0.5) * 5.0, -(poseData.leftWrist.y - 0.5) * 4.0, 0.5);
+        // Z is set to 1.5 to aggressively cut through the front of the shirt so the real body shows through
+        leftArmOccluderStart.current.set(-(poseData.leftShoulder.x - 0.5) * 5.0, -(poseData.leftShoulder.y - 0.5) * 4.0, 1.5);
+        leftArmOccluderEnd.current.set(-(poseData.leftWrist.x - 0.5) * 5.0, -(poseData.leftWrist.y - 0.5) * 4.0, 1.5);
         
-        rightArmOccluderStart.current.set(-(poseData.rightShoulder.x - 0.5) * 5.0, -(poseData.rightShoulder.y - 0.5) * 4.0, 0.5);
-        rightArmOccluderEnd.current.set(-(poseData.rightWrist.x - 0.5) * 5.0, -(poseData.rightWrist.y - 0.5) * 4.0, 0.5);
+        rightArmOccluderStart.current.set(-(poseData.rightShoulder.x - 0.5) * 5.0, -(poseData.rightShoulder.y - 0.5) * 4.0, 1.5);
+        rightArmOccluderEnd.current.set(-(poseData.rightWrist.x - 0.5) * 5.0, -(poseData.rightWrist.y - 0.5) * 4.0, 1.5);
 
         if (poseData.nose) {
-          // Position head occluder at the nose/neck area (slightly offset down to cover the neck)
-          headOccluderPos.current.set(-(poseData.nose.x - 0.5) * 5.0, -(poseData.nose.y - 0.5) * 4.0 - 0.4, 0.2);
+          // Position head occluder at the nose/neck area. Z=1.5 cuts through everything.
+          headOccluderPos.current.set(-(poseData.nose.x - 0.5) * 5.0, -(poseData.nose.y - 0.5) * 4.0 - 0.2, 1.5);
         }
       } else {
         avatarGroupRef.current.position.set(0, -0.4, 0);
@@ -168,9 +165,9 @@ function DynamicBodyAndGarment({
       {/* Invisible Depth Occluders to hide shirt when arms are in front */}
       {isCameraActive && poseData && (
         <>
-           <ArmOccluder start={leftArmOccluderStart.current} end={leftArmOccluderEnd.current} radius={0.25} />
-           <ArmOccluder start={rightArmOccluderStart.current} end={rightArmOccluderEnd.current} radius={0.25} />
-           <HeadOccluder position={headOccluderPos.current} radius={0.45} />
+           <ArmOccluder start={leftArmOccluderStart.current} end={leftArmOccluderEnd.current} radius={0.3} />
+           <ArmOccluder start={rightArmOccluderStart.current} end={rightArmOccluderEnd.current} radius={0.3} />
+           <HeadOccluder position={headOccluderPos.current} radius={0.4} length={0.7} />
         </>
       )}
     </>
