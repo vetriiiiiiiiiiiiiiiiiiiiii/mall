@@ -11,7 +11,7 @@ export function usePoseTracking(
 ) {
   const [poseData, setPoseData] = useState<PoseData | null>(null);
   const [isTracking, setIsTracking] = useState<boolean>(false);
-  const [segmentationMask, setSegmentationMask] = useState<ImageBitmap | HTMLCanvasElement | null>(null);
+  const [segmentationMask, setSegmentationMask] = useState<ImageBitmap | HTMLCanvasElement | HTMLImageElement | null>(null);
 
   const poseRef = useRef<Pose | null>(null);
   const cameraRef = useRef<Camera | null>(null);
