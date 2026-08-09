@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, ContactShadows } from '@react-three/drei';
+import { OrbitControls, ContactShadows, Environment } from '@react-three/drei';
 import * as THREE from 'three';
 import { Shirt, PoseData } from '@/types/shirt';
 import { GLTFGarment } from './GLTFGarment';
@@ -47,6 +47,24 @@ function ArmOccluder({ start, end, radius }: { start: THREE.Vector3, end: THREE.
   );
 }
 
+// Invisible sphere to block the back of the collar so the neck goes inside the shirt
+function HeadOccluder({ position, radius }: { position: THREE.Vector3, radius: number }) {
+  const meshRef = useRef<THREE.Mesh>(null);
+  
+  useFrame(() => {
+    if (!meshRef.current) return;
+    // We add a tiny lerp to smooth the head tracking too
+    meshRef.current.position.lerp(position, 0.5);
+  });
+
+  return (
+    <mesh ref={meshRef} renderOrder={-1}>
+      <sphereGeometry args={[radius, 32, 32]} />
+      <meshBasicMaterial colorWrite={false} depthWrite={true} />
+    </mesh>
+  );
+}
+
 function DynamicBodyAndGarment({
   shirt,
   poseData,
@@ -59,6 +77,7 @@ function DynamicBodyAndGarment({
   const leftArmOccluderEnd = useRef(new THREE.Vector3());
   const rightArmOccluderStart = useRef(new THREE.Vector3());
   const rightArmOccluderEnd = useRef(new THREE.Vector3());
+  const headOccluderPos = useRef(new THREE.Vector3(0, 10, 0)); // default out of view
 
   useFrame(() => {
     if (avatarGroupRef.current) {
@@ -104,6 +123,11 @@ function DynamicBodyAndGarment({
         
         rightArmOccluderStart.current.set(-(poseData.rightShoulder.x - 0.5) * 5.0, -(poseData.rightShoulder.y - 0.5) * 4.0, 0.5);
         rightArmOccluderEnd.current.set(-(poseData.rightWrist.x - 0.5) * 5.0, -(poseData.rightWrist.y - 0.5) * 4.0, 0.5);
+
+        if (poseData.nose) {
+          // Position head occluder at the nose/neck area (slightly offset down to cover the neck)
+          headOccluderPos.current.set(-(poseData.nose.x - 0.5) * 5.0, -(poseData.nose.y - 0.5) * 4.0 - 0.4, 0.2);
+        }
       } else {
         avatarGroupRef.current.position.set(0, -0.4, 0);
         avatarGroupRef.current.scale.setScalar(1.0);
@@ -146,6 +170,7 @@ function DynamicBodyAndGarment({
         <>
            <ArmOccluder start={leftArmOccluderStart.current} end={leftArmOccluderEnd.current} radius={0.25} />
            <ArmOccluder start={rightArmOccluderStart.current} end={rightArmOccluderEnd.current} radius={0.25} />
+           <HeadOccluder position={headOccluderPos.current} radius={0.45} />
         </>
       )}
     </>
@@ -180,10 +205,11 @@ export function GarmentRenderer({
       gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
       className="w-full h-full"
     >
-      <ambientLight intensity={1.2} />
-      <directionalLight position={[4, 6, 4]} intensity={1.8} castShadow />
-      <pointLight position={[-4, 2, -2]} intensity={0.8} color="#06B6D4" />
-      <pointLight position={[4, -1, 2]} intensity={0.7} color="#6366F1" />
+      <ambientLight intensity={0.5} />
+      <directionalLight position={[4, 6, 4]} intensity={1.0} castShadow />
+      
+      {/* High-Definition Image Based Lighting (IBL) for hyper-realistic fabric reflections */}
+      <Environment preset="city" environmentIntensity={1.2} blur={0.8} />
 
       <DynamicBodyAndGarment
         shirt={shirt}

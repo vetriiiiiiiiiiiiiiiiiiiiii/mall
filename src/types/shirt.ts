@@ -68,6 +68,9 @@ export interface PoseData {
   rightElbow: PoseLandmark;
   leftWrist: PoseLandmark;
   rightWrist: PoseLandmark;
+  nose?: PoseLandmark;
+  leftEar?: PoseLandmark;
+  rightEar?: PoseLandmark;
   torsoCenter: { x: number; y: number; z: number };
   torsoWidth: number;
   torsoHeight: number;

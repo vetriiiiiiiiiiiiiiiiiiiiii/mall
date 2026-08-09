@@ -27,6 +27,29 @@ function GarmentModel({ shirt, poseData, isCameraActive, baseScale = [0.09, 0.09
   useEffect(() => {
     if (!scene) return;
 
+    // Procedural Fabric Texture Generator
+    const generateFabricTexture = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 256;
+      const context = canvas.getContext('2d');
+      if (context) {
+        context.fillStyle = '#808080'; // Neutral normal base
+        context.fillRect(0, 0, 256, 256);
+        for (let i = 0; i < 20000; i++) {
+          context.fillStyle = Math.random() > 0.5 ? '#909090' : '#707070';
+          context.fillRect(Math.random() * 256, Math.random() * 256, 1, 2);
+        }
+      }
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.repeat.set(10, 10);
+      return texture;
+    };
+    
+    const fabricNormalMap = generateFabricTexture();
+
     scene.traverse((child: any) => {
       // Find Rig Bones
       if (child.isBone) {
@@ -42,13 +65,12 @@ function GarmentModel({ shirt, poseData, isCameraActive, baseScale = [0.09, 0.09
 
       // Configure Materials for True Garment Quality
       if (child.isMesh && child.material) {
-        // Here we override the PBR material with our dynamic textures and colors
-        // In a full production system, we'd use TextureLoader to load shirt.baseColorMap, normalMap, etc.
-        // For development proof of concept, we set the color and roughness dynamically
         child.material = new THREE.MeshStandardMaterial({
           color: shirt.colorHex || '#ffffff',
-          roughness: 0.85, // Fabric roughness
-          metalness: 0.05,
+          roughness: 0.9, // Matte fabric
+          metalness: 0.1, // Slight sheen
+          bumpMap: fabricNormalMap,
+          bumpScale: 0.005, // Very subtle fabric weave effect
           side: THREE.DoubleSide,
         });
         child.castShadow = true;

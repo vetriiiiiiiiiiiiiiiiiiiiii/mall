@@ -40,6 +40,9 @@ export function usePoseTracking(
     const landmarks = results.poseLandmarks;
     
     // Landmark indices from MediaPipe Pose
+    const nose = landmarks[0];
+    const leftEar = landmarks[7];
+    const rightEar = landmarks[8];
     const leftShoulder = landmarks[11];
     const rightShoulder = landmarks[12];
     const leftElbow = landmarks[13];
@@ -70,6 +73,13 @@ export function usePoseTracking(
     const SMOOTHING = 0.25; // Lower is smoother (stops flinging)
 
     const smoothedPose: PoseData = {
+      nose: {
+        x: applyEma(nose.x, lastPose?.nose?.x, SMOOTHING),
+        y: applyEma(nose.y, lastPose?.nose?.y, SMOOTHING),
+        z: applyEma(nose.z, lastPose?.nose?.z, SMOOTHING),
+      },
+      leftEar,
+      rightEar,
       leftShoulder,
       rightShoulder,
       leftHip,
