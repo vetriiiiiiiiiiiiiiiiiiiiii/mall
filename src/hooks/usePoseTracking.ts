@@ -63,6 +63,25 @@ export function usePoseTracking(
       z: (leftShoulder.z + rightShoulder.z) / 2,
     };
 
+    // --- 50-Point AI Body Spline Grid ---
+    const rawBodyGrid: {x: number, y: number, z: number}[] = [];
+    const estimatedTorsoHeight = torsoWidth * 1.6; // Human proportion constraint
+    for (let row = 0; row < 5; row++) {
+      for (let col = 0; col < 10; col++) {
+        const u = col / 9; // 0 to 1 (left to right)
+        const v = row / 4; // 0 to 1 (top to bottom)
+        
+        // Add anatomical curve to chest (sticks out in the middle, tapers down)
+        const chestCurveZ = Math.sin(u * Math.PI) * (torsoWidth * 0.4) * (1 - v * 0.3);
+        
+        const x = leftShoulder.x + (rightShoulder.x - leftShoulder.x) * u;
+        const y = shouldersY + (estimatedTorsoHeight * v);
+        const z = ((leftShoulder.z + rightShoulder.z) / 2) - chestCurveZ;
+        
+        rawBodyGrid.push({ x, y, z });
+      }
+    }
+
     const rotationY = Math.atan2(rightShoulder.z - leftShoulder.z, rightShoulder.x - leftShoulder.x);
     const tiltZ = Math.atan2(rightShoulder.y - leftShoulder.y, rightShoulder.x - leftShoulder.x);
 
@@ -103,6 +122,11 @@ export function usePoseTracking(
       rightArmAngleZ: applyAngleEma(rightArmAngleZ, lastPose?.rightArmAngleZ, SMOOTHING),
       leftForearmAngleZ: applyAngleEma(leftForearmAngleZ, lastPose?.leftForearmAngleZ, SMOOTHING),
       rightForearmAngleZ: applyAngleEma(rightForearmAngleZ, lastPose?.rightForearmAngleZ, SMOOTHING),
+      bodyGrid: rawBodyGrid.map((pt, i) => ({
+        x: applyEma(pt.x, lastPose?.bodyGrid?.[i]?.x, SMOOTHING),
+        y: applyEma(pt.y, lastPose?.bodyGrid?.[i]?.y, SMOOTHING),
+        z: applyEma(pt.z, lastPose?.bodyGrid?.[i]?.z, SMOOTHING),
+      })),
     };
 
     lastPoseRef.current = smoothedPose;

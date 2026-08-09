@@ -80,4 +80,5 @@ export interface PoseData {
   rightArmAngleZ: number; // radians (right sleeve articulation)
   leftForearmAngleZ: number;
   rightForearmAngleZ: number;
+  bodyGrid: { x: number; y: number; z: number }[]; // 50-point spline grid for GPU deformation
 }
